@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from tokenizers import BertWordPieceTokenizer
+from torch.nn import functional as F
 
 # hyperparameters
-batch_size = 32 # how many independent sequences will we process in parallel?
-block_size = 8 # what is the maximum context length for predictions?
+batch_size = 16 # how many independent sequences will we process in parallel?
+block_size = 32 # what is the maximum context length for predictions?
 max_iters = 5000
+eval_interval = 100
 learning_rate = 1e-3
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embd = 32 # embedding dimension   
+n_embd = 64
 n_head = 4
 n_layer = 4
 dropout = 0.0
@@ -21,31 +22,14 @@ torch.manual_seed(1337)
 with open('input.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
-
-# Initialize and train tokenizer
-tokenizer = BertWordPieceTokenizer()
-tokenizer.train(files=["input.txt"], vocab_size=5000)
-tokenizer.save("tokenizer.json")
-
-# Load trained tokenizer
-tokenizer = BertWordPieceTokenizer("tokenizer.json")
-
-# Update encoding and decoding functions to use word tokens
-encode = lambda s: tokenizer.encode(s).ids  # Convert text to token IDs
-decode = lambda l: tokenizer.decode(l)  # Convert token IDs back to text
-
-# Get vocabulary size
-vocab_size = tokenizer.get_vocab_size()
-
-
 # here are all the unique characters that occur in this text
-#chars = sorted(list(set(text)))
-#vocab_size = len(chars)
+chars = sorted(list(set(text)))
+vocab_size = len(chars)
 # create a mapping from characters to integers
-#stoi = { ch:i for i,ch in enumerate(chars) }
-#itos = { i:ch for i,ch in enumerate(chars) }
-#encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
-#decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
+stoi = { ch:i for i,ch in enumerate(chars) }
+itos = { i:ch for i,ch in enumerate(chars) }
+encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
+decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
 
 # Train and test splits
 data = torch.tensor(encode(text), dtype=torch.long)
@@ -170,7 +154,7 @@ class BigramLanguageModel(nn.Module):
         x = tok_emb + pos_emb # (B,T,C)
         x = self.blocks(x) # (B,T,C)
         x = self.ln_f(x) # (B,T,C)
-        logits = self.lm_head(tok_emb) # (B,T,vocab_size)
+        logits = self.lm_head(x) # (B,T,vocab_size)
 
         if targets is None:
             loss = None
