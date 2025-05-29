@@ -3,17 +3,17 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 # hyperparameters
-batch_size = 32# how many independent sequences will we process in parallel?
-block_size = 64 # what is the maximum context length for predictions?
-max_iters = 10_000
-eval_interval = 500
-learning_rate = 3e-5
+batch_size = 16 # how many independent sequences will we process in parallel?
+block_size = 32 # what is the maximum context length for predictions?
+max_iters = 5000
+eval_interval = 100
+learning_rate = 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embd = 256
-n_head = 8
-n_layer = 8
-dropout = 0.1
+n_embd = 64
+n_head = 4
+n_layer = 4
+dropout = 0.0
 # ------------
 
 torch.manual_seed(1337)
@@ -166,7 +166,7 @@ class BigramLanguageModel(nn.Module):
 
         return logits, loss
 
-    def generate(self, idx, max_new_tokens, temperature=0.8):
+    def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             # crop idx to the last block_size tokens
@@ -175,9 +175,6 @@ class BigramLanguageModel(nn.Module):
             logits, loss = self(idx_cond)
             # focus only on the last time step
             logits = logits[:, -1, :] # becomes (B, C)
-
-            logits = logits/temperature # scale the logits by temperature
-
             # apply softmax to get probabilities
             probs = F.softmax(logits, dim=-1) # (B, C)
             # sample from the distribution
@@ -210,6 +207,13 @@ for iter in range(max_iters):
     loss.backward()
     optimizer.step()
 
+torch.save(model.state_dict(), "shakespeare_model.pt") #saves learned information into that file
+
+model.load_state_dict(torch.load("shakespeare_model.pt"))
+model.eval()
+
 # generate from the model
-context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=1000, temperature=0.8)[0].tolist()))
+prompt = "JULIET:"
+context = torch.tensor([encode(prompt)], dtype=torch.long, device=device)
+generated = m.generate(context, max_new_tokens=500)
+print(decode(generated[0].tolist()))
